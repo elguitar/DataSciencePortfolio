@@ -1,0 +1,100 @@
+---
+title: "What Makes a Pokemon Legendary"
+author: "Petri Salminen"
+date: "10/22/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Intro
+
+A social media ad insisted that I should try [Data Camp's "What Makes Pokemon Legendary?](https://www.datacamp.com/projects/712?open-modal=project-upgrade-modal). I think that the subject is very cool and because of that, I will try to analyze Pokemon myself. I have not attented the Data Camp's project. The Data Camp's project is just an inspiration for me. If you want to do the project, follow the link above.
+
+As the title clearly states, our mission is to find out what Pokemons' features make the Pokemon legendary. Hopefully we will find out something interesting.
+
+## Reading the data
+
+The dataset we will use is in Kaggle: [Pokemon dataset](https://www.kaggle.com/rounakbanik/pokemon/download). It can be downloaded from there as a csv-file.
+
+Once you have the csv, you can read the file using `read.csv` -function:
+
+```{r}
+df <- read.csv(file="pokemon.csv", header=TRUE, sep=",")
+#df <- head(df,151) # Take a small subset
+```
+
+Now it is in `df` variable :)
+
+## Exploring
+
+The names of the columns:
+
+```{r}
+names(df)
+```
+
+There's 41 variables! That is quite a lot. The last one is `is_legendary`, which is exactly what we are interested in! `weight_kg` and `height_m` seem like good candidates for plotting. Notice that the color changes based on whether the Pokemon is legendary or not. I always manage to forget that R starts from index 1. 
+
+```{r}
+plot(df$weight_kg, df$height_m, col=c('gray','red')[1+as.numeric(df$is_legendary)])
+```
+
+Interestingly, the height of the Pokemon seems to rise as weight increases. This seems logical. It can be seen that Pokemon are not completely logical, since there are many outliers. For example, there is the ultimately dense Cosmoem:
+
+```{r}
+cosmoem <- df[df$name == "Cosmoem",]
+cat(cosmoem$name, "weights", cosmoem$weight_kg, "kilograms, but is only", cosmoem$height_m, " meters tall!")
+```
+
+
+## Splitting the data into training and testing
+```{r}
+library(caTools)
+set.seed(27)
+split = sample.split(df$is_legendary, SplitRatio = 0.7)
+train = subset(df, split==TRUE)
+test  = subset(df, split==FALSE)
+```
+
+## Predicting with a decision tree (1st try)
+
+Let's try building a simple decision tree and see what it will come up with!
+```{r}
+library(rpart)
+library(rpart.plot)
+
+tree = rpart(is_legendary ~ against_bug + against_dark + against_dragon + against_electric + against_fairy + against_fight + against_fire + against_flying + against_ghost + against_grass + against_ground + against_ice + against_normal + against_poison + against_psychic + against_rock + against_steel + against_water + attack + base_egg_steps + base_happiness + base_total + capture_rate + defense + experience_growth + height_m + hp + percentage_male + sp_attack + sp_defense + speed + type1 + type2 + weight_kg, data=train)
+rpart.plot(tree, tweak=.7)
+```
+
+Okay, that looks weird. It looks like there are some non-numerical values in the `capture_rate` field!
+
+## Predicting with a decision tree (2nd try)
+
+We should convert it to numerical, so that the decision tree does not go nuts about the "categorical" values.
+
+```{r}
+df[df$capture_rate == "30 (Meteorite)255 (Core)",]$capture_rate <- round((30 + 255)/2)
+df$capture_rate <- as.numeric(df$capture_rate)
+library(caTools)
+set.seed(27)
+split = sample.split(df$is_legendary, SplitRatio = 0.7)
+train = subset(df, split==TRUE)
+test  = subset(df, split==FALSE)
+```
+
+Let's try building a simple decision tree and see what it will come up with!
+```{r}
+library(rpart)
+library(rpart.plot)
+
+tree = rpart(is_legendary ~ against_bug + against_dark + against_dragon + against_electric + against_fairy + against_fight + against_fire + against_flying + against_ghost + against_grass + against_ground + against_ice + against_normal + against_poison + against_psychic + against_rock + against_steel + against_water + attack + base_egg_steps + base_happiness + base_total + capture_rate + defense + experience_growth + height_m + hp + percentage_male + sp_attack + sp_defense + speed + type1 + type2 + weight_kg, data=train)
+rpart.plot(tree, tweak=.7)
+```
+
+Okay! It seems to me that the feature that is the best at explaining legendary pokemon is that when the `base_egg_steps` is over 15000, it is most certainly a legendary pokemon, with the exception of bug and normal type pokemon, which have slightly lower odds of being legendary even with large `base_egg_steps`. Another feature that could be used is that when the `capture_rate` is under 14, it could be a legendary pokemon.
+
+I will most probably continue this by creating more sophisticated models, but for now, it can wait.
