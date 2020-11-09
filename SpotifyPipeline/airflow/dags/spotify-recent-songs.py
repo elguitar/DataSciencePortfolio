@@ -7,7 +7,6 @@ from pprint import pprint
 
 from airflow import DAG
 from airflow.hooks import S3_hook
-from operators.multiline_bash_operator import MultilineBashOperator
 from airflow.operators.python_operator import PythonOperator
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -20,10 +19,10 @@ default_args = {
 
 BUCKET_NAME="elguitar-data-engineering-demo-bucket"
 
-def get_s3_object():
-    """Simple wrapper, which ensures that the bucket exists"""
+def get_s3_object(check=False):
+    """Simple wrapper, which ensures that the bucket exists if wanted"""
     sthree = S3_hook.S3Hook()
-    if not sthree.check_for_bucket(BUCKET_NAME):
+    if check and not sthree.check_for_bucket(BUCKET_NAME):
         sthree.create_bucket(BUCKET_NAME)
     return sthree
 
@@ -223,24 +222,3 @@ with DAG(
     context >> fetch >> [list_artists, list_tracks]
 
     list_tracks >> fetch_analysis >> clean_analysis
-
-default_args = {
-    'retries': 5,
-    'retry_delay': timedelta(minutes=5),
-    'start_date': datetime(2020,11,7)
-}
-
-with DAG(
-    'daily_spotify',
-    default_args=default_args,
-    description="Do the daily tasks to spotify data",
-    schedule_interval=timedelta(days=1),
-) as dag:
-
-    # Using a custom MultilineBashOperator just to prove that I am aware of
-    # operators other than PythonOperator :D
-    list_s3_objects = MultilineBashOperator(
-            task_id = "list_buckets",
-            bash_command = "aws s3 ls s3://elguitar-data-engineering-demo-bucket/ | awk '{print $4}'",
-            xcom_push = True,
-    )
