@@ -1,12 +1,26 @@
+from io import StringIO
 from datetime import datetime, timedelta
 
 from airflow import DAG
+from airflow.hooks import S3_hook
 import pandas as pd
 from airflow.operators.python_operator import PythonOperator
 
 from operators.multiline_bash_operator import MultilineBashOperator
 
 BUCKET_NAME="elguitar-data-engineering-demo-bucket"
+
+def get_s3_object(check=False):
+    """Simple wrapper, which ensures that the bucket exists if wanted"""
+    sthree = S3_hook.S3Hook()
+    if check and not sthree.check_for_bucket(BUCKET_NAME):
+        sthree.create_bucket(BUCKET_NAME)
+    return sthree
+
+def save_to_s3(data, key):
+    sthree = get_s3_object()
+    return sthree.load_string(data, key, BUCKET_NAME, replace=True)
+
 
 default_args = {
     'retries': 0,
@@ -33,7 +47,12 @@ with DAG(
         df = pd.concat(dfs[::-1]).drop_duplicates().reset_index(drop=True)
         df.played_at = pd.to_datetime(df.played_at)
         today_df = df[(df.played_at > context.get('ds')) & (df.played_at < context.get('tomorrow_ds'))]
+        key = "s3://" + BUCKET_NAME + "/daily_listened_tracks_" + context.get('ds') + ".csv"
+        csv_contents = StringIO()
+        today_df.to_csv(csv_contents)
+        save_to_s3(csv_contents.getvalue(), key)
         print(today_df)
+        return key
 
     # Using a custom MultilineBashOperator just to prove that I am aware of
     # operators other than PythonOperator :D
