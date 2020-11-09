@@ -1,1 +1,7 @@
 .env
+.cache
+loading_area/*
+venv
+airflow/airflow.*
+airflow/logs
+__pycache__
