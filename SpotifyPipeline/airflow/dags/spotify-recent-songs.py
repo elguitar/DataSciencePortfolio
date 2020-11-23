@@ -68,7 +68,7 @@ def csv_string(objects):
 with DAG(
     'fetch_recent_tracks',
     default_args=default_args,
-    description="Fetch the recently played tracks from Spotify Web API and store them as json",
+    description="Fetch the recently played tracks from Spotify Web API and store them to S3",
     schedule_interval=timedelta(minutes=25),
     catchup=False,
 ) as dag:
@@ -125,9 +125,7 @@ with DAG(
         data = read_json_from_s3(key)
         artist_list = []
         for x in data.get('items', []):
-            print(x.keys())
             for a in x.get('track', {}).get('artists', [{}]):
-                print(a.keys())
                 artist_list.append({'name': a.get('name', None)})
         now = datetime.now()
         key = f"artist_list_{timestamp(now)}.csv"
@@ -171,6 +169,8 @@ with DAG(
     def clean_the_track_analysis(**context):
         keys = context['task_instance'].xcom_pull(task_ids='fetch_tracks_analysis_from_spotify')
         analyses = []
+        if keys == []:
+            return
         for key in keys:
             analysis = read_json_from_s3(key)
 
