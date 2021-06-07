@@ -40,6 +40,7 @@ page = st.sidebar.radio(
         "Select page", ["Date", "Total", "Top lists"])
 
 if page == "Date":
+
     date = st.date_input("start date", datetime.date(2020, 11, 7))
     df = load_daily_listened_data(date).copy()
     df['played_at'] = pd.to_datetime(df['played_at'])
@@ -50,6 +51,7 @@ if page == "Date":
 
 
 elif page == "Total":
+
     date = st.date_input("start date", datetime.date(2020, 11, 7))
     enddate = st.date_input("end date", datetime.date(2020, 11, 10))
     df = load_daily_listened_data(date)
@@ -67,6 +69,7 @@ elif page == "Total":
     st.line_chart(df.set_index('played_at').plays.resample(res).sum())
 
 elif page == "Top lists":
+
     df = load_top_artists()
     x = st.slider("Select how many results to show at most", 1, 100, 10)
     sorted_df = df.sort_values('n', ascending=False)

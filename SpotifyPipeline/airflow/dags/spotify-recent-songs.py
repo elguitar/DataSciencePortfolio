@@ -174,13 +174,30 @@ with DAG(
         for key in keys:
             analysis = read_json_from_s3(key)
 
-            include_cols = ("duration", "loudness", "tempo", "time_signature", "key", "mode")
+            include_cols = ("id", "duration", "loudness", "tempo", "time_signature", "key", "mode")
             analyses.append({k: analysis['track'][k] for k in include_cols})
 
         now = datetime.now()
         key = f"clean_track_analysis_{timestamp(now)}.csv"
         save_to_s3(csv_string(analyses), key)
         return key
+
+    def upsert_to_track_list(**context):
+        key = context['task_instance'].xcom_pull(task_ids='generate_track_list')
+        print(key)
+        last_track_list = read_csv_from_s3(key)
+        track_list = read_csv_from_s3('the_track_list.csv')
+        track_set = {t['id'] + t['played_at'] for t in track_list}
+        status = {"Added":0, "Skipped":0}
+        for track in last_track_list:
+            if track['id'] + track['played_at'] not in track_set:
+                track_list.append(track)
+                status["Added"] += 1
+            else:
+                status["Skipped"] += 1
+        save_to_s3(csv_string(track_list), 'the_track_list.csv')
+        print(status)
+
 
 
 
@@ -219,6 +236,13 @@ with DAG(
         provide_context = True,
     )
 
+    upsert_track_list = PythonOperator(
+        task_id = 'upsert_track_list',
+        python_callable = upsert_to_track_list,
+        provide_context = True,
+    )
+
     context >> fetch >> [list_artists, list_tracks]
 
     list_tracks >> fetch_analysis >> clean_analysis
+    list_tracks >> upsert_track_list
